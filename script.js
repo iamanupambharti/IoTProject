@@ -1127,29 +1127,16 @@ async function onConnectClick(showAll = false) {
     );
 
     log(
-      showAll
-        ? 'Opening Bluetooth device picker (all devices)...'
-        : `Opening Bluetooth device picker (filtering for ${BLE_DEVICE_NAME})...`
+      'Opening Bluetooth device picker...'
     );
 
-    const options = showAll
-      ? {
-          acceptAllDevices: true,
-          optionalServices: [
-            BLE_SERVICE_UUID
-          ]
-        }
-      : {
-          filters: [
-            { name: BLE_DEVICE_NAME }
-          ],
-          optionalServices: [
-            BLE_SERVICE_UUID
-          ]
-        };
-
     const device =
-      await navigator.bluetooth.requestDevice(options);
+      await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [
+          BLE_SERVICE_UUID
+        ]
+      });
 
     if (!device) {
       throw new Error(
@@ -1447,8 +1434,7 @@ function handleBleError(error) {
       );
 
       showBanner(
-        `PulseLink was selected, but its BLE service could not be found. ` +
-        `Check the Service UUID. Error: ${message}`
+        `PulseLink was selected, but its BLE service could not be found. Check UUID. Error: ${message}`
       );
 
       log(
@@ -1456,7 +1442,10 @@ function handleBleError(error) {
         'error'
       );
 
-    } else {
+    } else if (
+      message.toLowerCase().includes('cancel') ||
+      message.toLowerCase().includes('cancelled')
+    ) {
 
       setBleStatus(
         'Not connected',
@@ -1464,7 +1453,33 @@ function handleBleError(error) {
       );
 
       showBanner(
-        'No ESP32 selected. Select PulseLink from the Bluetooth list.'
+        'Selection cancelled. Tap "Connect PulseLink" and select PulseLink from the list.'
+      );
+
+    } else if (
+      message.toLowerCase().includes('adapter') ||
+      message.toLowerCase().includes('not available') ||
+      message.toLowerCase().includes('disabled')
+    ) {
+
+      setBleStatus(
+        'Bluetooth off',
+        'error'
+      );
+
+      showBanner(
+        'Bluetooth is OFF. Please turn Bluetooth ON in your phone settings.'
+      );
+
+    } else {
+
+      setBleStatus(
+        'Not connected',
+        'error'
+      );
+
+      showBanner(
+        `Bluetooth connection failed: ${message}`
       );
     }
 
