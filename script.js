@@ -24,7 +24,7 @@
    ============================================================================ */
 
 // ---- BLE (must match the ESP32 sketch) ----
-const BLE_DEVICE_NAME           = 'ESP32-Health-Monitor';
+const BLE_DEVICE_NAME = 'PulseLink';
 const BLE_SERVICE_UUID          = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const BLE_CHARACTERISTIC_UUID   = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 const BLE_RECONNECT_ATTEMPTS    = 5;
