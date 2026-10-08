@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0f172a">
-  <title>ESP32 Health Monitor</title>
+  <title>PulseLink - Heart Rate Monitor</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="app">
 
     <header>
-      <h1>ESP32 Health Monitor</h1>
-      <p class="sub">Educational IoT prototype &middot; phone camera (PPG) &rarr; BLE &rarr; ESP32 OLED</p>
+      <h1>PulseLink</h1>
+      <p class="sub">Camera PPG Heart Rate Monitor &middot; Phone &rarr; BLE &rarr; ESP32 OLED</p>
     </header>
 
     <!-- Error / info banner (filled by script.js) -->
@@ -26,7 +26,7 @@
         <span id="bleStatus">Not connected</span>
       </div>
       <div class="btn-row">
-        <button id="btnConnect" class="btn primary" type="button">Connect ESP32</button>
+        <button id="btnConnect" class="btn primary" type="button">Connect PulseLink</button>
         <button id="btnDisconnect" class="btn" type="button" disabled>Disconnect</button>
       </div>
       <button id="btnConnectAll" class="link" type="button">Can't find it? Show all BLE devices</button>
@@ -70,31 +70,6 @@
       <canvas id="sampleCanvas" width="48" height="48" hidden></canvas>
     </section>
 
-    <!-- ============ 3. BP DEMONSTRATION ============ -->
-    <section class="card">
-      <h2>3. BP Status / Demonstration</h2>
-      <p class="hint warn">
-        Blood pressure CANNOT be measured by a phone camera. These two numbers are
-        <strong>typed in by you</strong> and only classified for demonstration. This is not a clinically validated BP measurement.
-      </p>
-
-      <div class="field-row">
-        <label>Systolic BP (mmHg)
-          <input id="inpSys" type="number" inputmode="numeric" min="60" max="250" placeholder="e.g. 120">
-        </label>
-        <label>Diastolic BP (mmHg)
-          <input id="inpDia" type="number" inputmode="numeric" min="30" max="150" placeholder="e.g. 80">
-        </label>
-      </div>
-
-      <button id="btnSendHealth" class="btn primary full" type="button">Send Health Data</button>
-
-      <div class="bp-result">
-        BP Status (demo): <span id="bpResult" class="chip none">--</span>
-      </div>
-      <div id="bpMessage" class="small"></div>
-    </section>
-
     <!-- ============ LOG ============ -->
     <section class="card">
       <h2>Log</h2>
@@ -105,8 +80,7 @@
     <footer>
       <p>
         <strong>Disclaimer:</strong> This is an educational IoT prototype, not a medical device.
-        Camera-based BPM is only an estimate and is not a medical diagnosis. Blood pressure cannot be
-        reliably derived from heart rate alone; the BP feature here is based on values you enter.
+        Camera-based BPM is an optical estimate and is not a medical diagnosis.
       </p>
     </footer>
 
