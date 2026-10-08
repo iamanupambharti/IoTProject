@@ -943,8 +943,7 @@ function sendableBpm() {
 }
 
 function buildPayload(bpm) {
-  let payload = `HR:${bpm}`;
-  if (state.bpStatus) payload += `,BP:${state.bpStatus}`;
+const payload = `HR:${bpm}`;
   return payload;
 }
 
@@ -993,7 +992,8 @@ async function onSendHealthData() {
   }
 
   const bpm = sendableBpm();
-  const payload = bpm !== null ? buildPayload(bpm) : `BP:${status}`;
+  const payload = bpm !== null ? `HR:${bpm}` : null;
+  if (!payload) return; 
   const ok = await sendToEsp(payload);
   el.bpMessage.textContent = ok
     ? `Sent "${payload}" to ESP32.` + (bpm === null ? ' (No stable heart rate yet, so only BP status was sent.)' : '')
