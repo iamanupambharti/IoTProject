@@ -738,7 +738,7 @@ function analyzePulse(
 function isValidBpm(value) {
 
   return (
-    Number.isFinite(value) &&
+    Number.isInteger(value) &&
     value >= BPM_MIN_VALID &&
     value <= BPM_MAX_VALID
   );
@@ -776,17 +776,6 @@ const ELEMENT_IDS = [
 
   'torchStatus',
   'redDebug',
-
-  /*
-   * These BP elements may still exist in the old HTML.
-   * We don't use them anymore.
-   */
-  'inpSys',
-  'inpDia',
-  'btnSendHealth',
-  'bpResult',
-  'bpMessage',
-
   'logBox',
   'btnClearLog'
 ];
@@ -1105,34 +1094,23 @@ function isBleConnected() {
 }
 
 
-async function onConnectClick(
-  showAll = false
-) {
-
+async function onConnectClick(showAll = false) {
   hideBanner();
 
-
-  if (
-    !navigator.bluetooth
-  ) {
-
+  if (!navigator.bluetooth) {
     showBanner(
       'Web Bluetooth is not available. Use Chrome on Android.'
     );
 
     log(
-      'Web Bluetooth is not supported',
+      'Web Bluetooth is not supported.',
       'error'
     );
 
     return;
   }
 
-
-  if (
-    !window.isSecureContext
-  ) {
-
+  if (!window.isSecureContext) {
     showBanner(
       'HTTPS is required for Bluetooth and camera access.'
     );
@@ -1140,93 +1118,77 @@ async function onConnectClick(
     return;
   }
 
-
-  state.userDisconnected =
-    false;
-
+  state.userDisconnected = false;
 
   try {
-
     setBleStatus(
-      'Searching for ESP32...',
+      'Searching for PulseLink...',
       'busy'
     );
 
-
     log(
       showAll
-        ? 'Scanning all BLE devices...'
-        : `Scanning for "${BLE_DEVICE_NAME}"...`
+        ? 'Opening Bluetooth device picker (all devices)...'
+        : `Opening Bluetooth device picker (filtering for ${BLE_DEVICE_NAME})...`
     );
 
-
-    const options =
-      showAll
-
-        ? {
-            acceptAllDevices: true,
-            optionalServices: [
-              BLE_SERVICE_UUID
-            ]
-          }
-
-        : {
-            filters: [
-              {
-                name: BLE_DEVICE_NAME
-              },
-              {
-                services: [
-                  BLE_SERVICE_UUID
-                ]
-              }
-            ],
-
-            optionalServices: [
-              BLE_SERVICE_UUID
-            ]
-          };
-
+    const options = showAll
+      ? {
+          acceptAllDevices: true,
+          optionalServices: [
+            BLE_SERVICE_UUID
+          ]
+        }
+      : {
+          filters: [
+            { name: BLE_DEVICE_NAME }
+          ],
+          optionalServices: [
+            BLE_SERVICE_UUID
+          ]
+        };
 
     const device =
-      await navigator.bluetooth.requestDevice(
-        options
+      await navigator.bluetooth.requestDevice(options);
+
+    if (!device) {
+      throw new Error(
+        'Bluetooth device selection returned no device.'
       );
+    }
 
+    state.device = device;
 
-    state.device =
-      device;
-
+    log(
+      `Selected device: ${device.name || '(unnamed)'}`
+    );
 
     device.removeEventListener(
       'gattserverdisconnected',
       onGattDisconnected
     );
 
-
     device.addEventListener(
       'gattserverdisconnected',
       onGattDisconnected
     );
 
-
-    log(
-      `Selected device: ${
-        device.name || '(unnamed)'
-      }`
+    setBleStatus(
+      'Device selected - connecting...',
+      'busy'
     );
-
 
     await connectGatt();
 
-
   } catch (error) {
 
-    handleBleError(
+    console.error(
+      'BLE connection error:',
       error
     );
-  }
 
+    handleBleError(error);
+  }
 
   updateBleButtons();
 }
@@ -1241,30 +1203,122 @@ async function connectGatt() {
     );
   }
 
+  if (!state.device.gatt) {
+
+    throw new Error(
+      'Selected Bluetooth device does not expose GATT'
+    );
+  }
 
   setBleStatus(
     'Connecting to ESP32...',
     'busy'
   );
 
-
   try {
+
+    /*
+     * ------------------------------------------
+     * STEP 1: GATT connection
+     * ------------------------------------------
+     */
+
+    log(
+      'Connecting to GATT server...'
+    );
 
     const server =
       await state.device.gatt.connect();
 
+    log(
+      'GATT server connected.'
+    );
 
-    const service =
-      await server.getPrimaryService(
-        BLE_SERVICE_UUID
+
+    /*
+     * ------------------------------------------
+     * STEP 2: Find service
+     * ------------------------------------------
+     */
+
+    log(
+      `Searching for service: ${BLE_SERVICE_UUID}`
+    );
+
+    let service;
+
+    try {
+
+      service =
+        await server.getPrimaryService(
+          BLE_SERVICE_UUID
+        );
+
+    } catch (error) {
+
+      log(
+        `SERVICE ERROR: ${error.name}: ${error.message}`,
+        'error'
       );
 
+      throw new Error(
+        `PulseLink connected, but the BLE service was not found. ` +
+        `Expected service UUID: ${BLE_SERVICE_UUID}`
+      );
+    }
 
-    const characteristic =
-      await service.getCharacteristic(
-        BLE_CHARACTERISTIC_UUID
+    log(
+      'BLE service found.'
+    );
+
+
+    /*
+     * ------------------------------------------
+     * STEP 3: Find characteristic
+     * ------------------------------------------
+     */
+
+    log(
+      `Searching for characteristic: ${BLE_CHARACTERISTIC_UUID}`
+    );
+
+    let characteristic;
+
+    try {
+
+      characteristic =
+        await service.getCharacteristic(
+          BLE_CHARACTERISTIC_UUID
+        );
+
+    } catch (error) {
+
+      log(
+        `CHARACTERISTIC ERROR: ${error.name}: ${error.message}`,
+        'error'
       );
 
+      throw new Error(
+        `BLE service found, but the characteristic was not found. ` +
+        `Expected characteristic UUID: ${BLE_CHARACTERISTIC_UUID}`
+      );
+    }
+
+    log(
+      'BLE characteristic found.'
+    );
+
+
+    /*
+     * ------------------------------------------
+     * STEP 4: Check write permission
+     * ------------------------------------------
+     */
+
+    log(
+      `Characteristic properties: ` +
+      `${JSON.stringify(characteristic.properties)}`
+    );
 
     if (
       !characteristic.properties.write &&
@@ -1277,9 +1331,14 @@ async function connectGatt() {
     }
 
 
+    /*
+     * ------------------------------------------
+     * STEP 5: Save characteristic
+     * ------------------------------------------
+     */
+
     state.characteristic =
       characteristic;
-
 
     state.lastSentAt =
       -Infinity;
@@ -1288,22 +1347,47 @@ async function connectGatt() {
       null;
 
 
+    /*
+     * ------------------------------------------
+     * SUCCESS
+     * ------------------------------------------
+     */
+
     setBleStatus(
       'ESP32 Connected',
       'ok'
     );
 
+    log(
+      '================================'
+    );
 
     log(
       'ESP32 connected successfully'
     );
 
+    log(
+      `Device: ${state.device.name || 'PulseLink'}`
+    );
+
+    log(
+      'BLE communication ready.'
+    );
+
+    log(
+      '================================'
+    );
+
+    updateBleButtons();
 
   } catch (error) {
 
-    state.characteristic =
-      null;
+    state.characteristic = null;
 
+    log(
+      `GATT connection failed: ${error.name || 'Error'}: ${error.message || error}`,
+      'error'
+    );
 
     try {
 
@@ -1314,89 +1398,108 @@ async function connectGatt() {
       ) {
 
         state.device.gatt.disconnect();
-
       }
 
     } catch (_) {}
 
-
     throw error;
   }
-
-
-  updateBleButtons();
 }
 
 
-function handleBleError(
-  error
-) {
+function handleBleError(error) {
 
   const name =
-    error?.name ||
-    'Error';
-
+    error?.name || 'Error';
 
   const message =
-    error?.message ||
-    String(error);
+    error?.message || String(error);
 
+  console.error(
+    'BLE error:',
+    name,
+    message,
+    error
+  );
 
   log(
     `BLE error: ${name}: ${message}`,
     'error'
   );
 
+  state.characteristic = null;
 
-  state.characteristic =
-    null;
+  /*
+   * User cancelled the Bluetooth picker.
+   */
+  if (name === 'NotFoundError') {
 
+    /*
+     * If a device is already selected and we got
+     * this error during GATT/service discovery,
+     * it is NOT a "no device selected" error.
+     */
+    if (state.device) {
 
-  if (
-    name === 'NotFoundError'
-  ) {
+      setBleStatus(
+        'Device selected - GATT error',
+        'error'
+      );
 
-    setBleStatus(
-      'Not connected',
-      ''
-    );
+      showBanner(
+        `PulseLink was selected, but its BLE service could not be found. ` +
+        `Check the Service UUID. Error: ${message}`
+      );
 
+      log(
+        `GATT/service discovery failed: ${message}`,
+        'error'
+      );
 
-    showBanner(
-      'No ESP32 selected. Make sure PulseLink is powered and try again.',
-      'info'
-    );
+    } else {
 
+      setBleStatus(
+        'Not connected',
+        ''
+      );
 
-  } else if (
-    name === 'SecurityError'
-  ) {
+      showBanner(
+        'No ESP32 selected. Select PulseLink from the Bluetooth list.'
+      );
+    }
+
+  } else if (name === 'SecurityError') {
 
     setBleStatus(
       'Bluetooth blocked',
       'error'
     );
 
-
     showBanner(
       'Bluetooth permission was blocked. Allow Bluetooth/Nearby devices permission.'
     );
 
-
-  } else if (
-    name === 'NetworkError'
-  ) {
+  } else if (name === 'NetworkError') {
 
     setBleStatus(
       'Connection failed',
       'error'
     );
 
-
     showBanner(
-      'Could not connect to ESP32. Restart the ESP32 and try again.'
+      'Could not connect to PulseLink. Restart the ESP32 and try again.'
     );
 
+  } else if (name === 'InvalidStateError') {
+
+    setBleStatus(
+      'Bluetooth busy',
+      'error'
+    );
+
+    showBanner(
+      'Bluetooth is busy. Disconnect PulseLink and try again.'
+    );
 
   } else {
 
@@ -1405,12 +1508,10 @@ function handleBleError(
       'error'
     );
 
-
     showBanner(
       `Bluetooth error: ${message}`
     );
   }
-
 
   updateBleButtons();
 }
@@ -3496,47 +3597,6 @@ function init() {
       () =>
         stopMeasurement(true)
     );
-  }
-
-
-  /*
-   * BP button intentionally disabled.
-   *
-   * Our project does NOT measure blood pressure.
-   */
-
-  if (el.btnSendHealth) {
-
-    el.btnSendHealth.style.display =
-      'none';
-  }
-
-
-  if (el.inpSys) {
-
-    el.inpSys.style.display =
-      'none';
-  }
-
-
-  if (el.inpDia) {
-
-    el.inpDia.style.display =
-      'none';
-  }
-
-
-  if (el.bpResult) {
-
-    el.bpResult.style.display =
-      'none';
-  }
-
-
-  if (el.bpMessage) {
-
-    el.bpMessage.style.display =
-      'none';
   }
 
 
